@@ -37,7 +37,7 @@ port = 56789                        # restful监听端口
     signingKey = "simver"           # key加密签名
     visitCounts = 10                # 周期内访问次数限制
     checkCounts = 1                 # 周期内验证次数限制
-    expiredTime = 86400000000000    # 周期时常，单位为微秒
+    expiredTime = 86400000000000    # 周期时长，单位为微秒
 
     [server.rpc]
     ip = "0.0.0.0"                  # rpc监听地址
