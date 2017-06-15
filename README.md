@@ -65,7 +65,7 @@ port = 56789                        # restful监听端口
 ```
 
 ## 服务端间RPC通讯说明
-**服务端间RPC通讯数据采用protobuf3格式，数据模型为 `./vertify/vertify.proto`，内容如下：**
+**服务端间RPC采用谷歌GRPC技术，通讯数据采用protobuf3格式，数据模型为 `./vertify/vertify.proto`，内容如下：**
 ```
 syntax = "proto3";
 
