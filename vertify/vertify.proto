@@ -10,7 +10,14 @@ message VertifyRequest {
     string key = 1;
 }
 
+enum Status{
+    OK = 0;
+    VISITLIMIT = 1;
+    CHECKLIMIT = 2;
+}
+
 message VertifyResponse {
     bool checked = 1;
+    Status status = 2;
 }
 

@@ -2,7 +2,12 @@ package index
 
 import (
 	"errors"
-	"fmt"
+
+	"strconv"
+
+	"regexp"
+
+	"strings"
 
 	jwt "github.com/dgrijalva/jwt-go"
 	Redis "github.com/pwcong/simver/db/redis"
@@ -10,16 +15,12 @@ import (
 )
 
 type VertifyKeyClaims struct {
-	VisitCounts float64 `json:"visitCounts"`
-	CheckCounts float64 `json:"checkCounts"`
 	jwt.StandardClaims
 }
 
-func GenerateAndSetNewVertifyKey(ip string, visitCounts float64, checkCounts float64) (string, error) {
+func GenerateAndSetNewVertifyKey(ip string, visitCounts int, checkCounts int) (string, error) {
 
 	vertifyKeyClaims := VertifyKeyClaims{
-		visitCounts,
-		checkCounts,
 		jwt.StandardClaims{
 			Issuer: ip,
 		},
@@ -32,10 +33,10 @@ func GenerateAndSetNewVertifyKey(ip string, visitCounts float64, checkCounts flo
 		return "", err
 	}
 
-	err = Redis.Client.Set(ip, vertifyKey, Init.Config.Server.Vertify.ExpiredTime).Err()
+	err = Redis.Client.Set(ip, strconv.Itoa(visitCounts)+":"+strconv.Itoa(checkCounts), Init.Config.Server.Vertify.ExpiredTime).Err()
 
 	if err != nil {
-		return "", nil
+		return "", err
 	}
 
 	return vertifyKey, nil
@@ -44,7 +45,7 @@ func GenerateAndSetNewVertifyKey(ip string, visitCounts float64, checkCounts flo
 
 func GetVertifyKey(ip string) (string, error) {
 
-	vertifyKey, err := Redis.Client.Get(ip).Result()
+	record, err := Redis.Client.Get(ip).Result()
 
 	if err != nil {
 
@@ -52,44 +53,37 @@ func GetVertifyKey(ip string) (string, error) {
 
 	}
 
-	vertifyKeyToken, err := jwt.Parse(vertifyKey, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("Unexpected signing method: %v", token.Header["alg"])
-		}
-
-		return []byte(Init.Config.Server.Vertify.SigningKey), nil
-	})
-
-	if err != nil {
-
+	if record == "" {
 		return GenerateAndSetNewVertifyKey(ip, 1, 0)
 
 	}
 
-	if vertifyKeyClaims, ok := vertifyKeyToken.Claims.(jwt.MapClaims); ok && vertifyKeyToken.Valid {
-
-		visitCounts, ok := vertifyKeyClaims["visitCounts"].(float64)
-
-		if !ok {
-			visitCounts = 0
-		}
-
-		if int(visitCounts) >= Init.Config.Server.Vertify.VisitCounts {
-			return "", errors.New("visit counts limit")
-		}
-
-		checkCounts, ok := vertifyKeyClaims["checkCounts"].(float64)
-		if !ok {
-			checkCounts = 0
-		}
-
-		if int(checkCounts) >= Init.Config.Server.Vertify.CheckCounts {
-			return "", errors.New("check counts limit")
-		}
-
-		return GenerateAndSetNewVertifyKey(ip, visitCounts+1, checkCounts)
-
+	if matched, err := regexp.Match(`^\d+:\d+$`, []byte(record)); !matched || err != nil {
+		return GenerateAndSetNewVertifyKey(ip, 1, 0)
 	}
-	return GenerateAndSetNewVertifyKey(ip, 1, 0)
+
+	recordValues := strings.Split(record, ":")
+
+	visitCountsValue := recordValues[0]
+	visitCounts, err := strconv.Atoi(visitCountsValue)
+	if err != nil {
+		visitCounts = 1
+	}
+
+	if visitCounts >= Init.Config.Server.Vertify.VisitCounts {
+		return "", errors.New("visit counts limit")
+	}
+
+	checkCountsValue := recordValues[1]
+	checkCounts, err := strconv.Atoi(checkCountsValue)
+	if err != nil {
+		checkCounts = 0
+	}
+
+	if checkCounts >= Init.Config.Server.Vertify.CheckCounts {
+		return "", errors.New("check counts limit")
+	}
+
+	return GenerateAndSetNewVertifyKey(ip, visitCounts+1, checkCounts)
 
 }
